@@ -639,6 +639,7 @@ class Distiller:
         ex = Extractor(spec)
         if ex.rx is None:
             return False
+        spec["admitted_at"] = self.now       # sessions from this index on compute it as they end
         self.extractors[ex.name] = ex
         # retro-featurize the window so a same-tick fact can reference it
         for dg in self.window:
@@ -688,6 +689,9 @@ class Distiller:
             if hits < MIN_CITE:
                 return False, f"grounding-fail({hits}/{MIN_CITE})"
             spec.setdefault("rev", 1)
+            # when it entered: the window before this index seeded it, and sessions from this
+            # index on were observed as they ended (a replay reads it; nothing decides on it)
+            spec["admitted_at"] = self.now
             self.facts[fid] = self._build_fact(spec)
             return True, "admitted"
 
@@ -705,6 +709,9 @@ class Distiller:
         # mutate in place, KEEP the earned lifecycle, apply going forward.
         old.spec.setdefault("detector", {})["contradict"] = new_contra
         old.spec["rev"] = old.spec.get("rev", 1) + 1
+        # the condition it replaced, and from which session index on the new one applies
+        old.spec.setdefault("revisions", []).append(
+            {"at": self.now, "contradict": new_contra, "was": old_contra})
         return True, "revised-contradict"
 
     # ---- the two operations the Stage calls --------------------------------

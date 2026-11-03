@@ -8,7 +8,7 @@ is not part of the plugin; the method is described in the [main README](../READM
 |---|---|
 | `te_harness/` | runs an agent CLI in each SWE-Bench task's Docker image (on the host for Web-Bench) and grades it with the benchmark's own grader |
 | `te_bench/` | the experiment arms, the benchmark adapters, and the evaluated task sets (`workloads.py`) |
-| `scripts/` | `launch/` (the launchers), `run_experiment.py` (one arm on one task stream), `aggregate.py` and `compare_arms.py` |
+| `scripts/` | `launch/` (the launchers), `run_experiment.py` (one arm on one task stream), `aggregate.py`, `compare_arms.py` and `scope_replay.py` |
 | `workloads/` | the evaluated task ids: `swebench.json` (277 tasks), `webbench.json` (102), and the security sets |
 | `tests/` | offline tests: no Docker, data or API keys |
 
@@ -169,6 +169,19 @@ python scripts/compare_arms.py --baseline <tree>/baseline/<cell> --arm <tree>/<a
 against the baseline. Cost is in cache-aware effective tokens and includes the arm's own model
 calls. Web-Bench rows carry `resolved_p2`, the Pass@2 the paper reports. Never pool two trees:
 the agent and the model are both part of the cost basis.
+
+```bash
+python scripts/scope_replay.py --cell <tree>/<arm>/<cell>      # or --plugin ~/.tokeneconomizer/repos/<key>/<agent>
+```
+
+`scope_replay.py` replays a cell's saved micro-skills state over its sessions, with no model
+calls. For each fact it reports whether the firing gate reduces to the `scope` regex (no
+`fired` of its own), what the scope selected and missed (sessions outside it where `confirm`,
+`contradict` or `fired` matched anyway), and whether the fact's state or injection changes
+when contradictions count regardless of scope. It follows the distiller's clock: each fact from
+the tick its `admitted_at` records (reconstructed for a state written before that), and says
+whether the replay reproduces the saved lifecycle, which checks that the sessions given are the
+ones the distiller read.
 
 ## Troubleshooting
 

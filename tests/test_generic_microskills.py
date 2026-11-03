@@ -146,3 +146,37 @@ def test_the_experiments_proposer_prompt_is_the_papers():
     g = dist.PROPOSER_SYSTEM_GENERIC
     assert "repro_written" not in g and "importerror" not in g
     assert g.count(", ".join(dist.GENERIC_PREDICATES)) == 2
+
+
+def test_a_fact_records_when_it_entered_and_each_revision(tmp_path, monkeypatch):
+    """`admitted_at` and `revisions` say when a fact's lifecycle began and which contradiction
+    condition held when, so a replay over recorded sessions can rebuild it. They are recorded
+    only: the frozen view a revision is checked against leaves them out."""
+    monkeypatch.setattr(dist, "PROPOSE_EVERY", 2)
+    fact = {"id": "build-before-test", "claim": "make test needs make build first",
+            "injection": "`make test` runs the built binary: run `make build` first.",
+            "detector": {"scope": r"make test", "confirm": r"make build",
+                         "contradict": r"no rule to make target"},
+            "cite": ["s0", "s1"]}
+    revised = dict(fact, detector=dict(fact["detector"], contradict=r"make: \*\*\*"))
+    ticks = []
+
+    def runner(prompt, model):            # ticks after s0, s2 and s4
+        ticks.append(prompt)
+        exts = [{"name": "ran_make", "pattern": r"\bmake\b"}] if len(ticks) == 1 else []
+        facts = {2: [fact], 3: [revised]}.get(len(ticks), [])
+        return json.dumps({"extractors": exts, "facts": facts}), 1.0
+    root = str(tmp_path / "state")
+    for i in range(6):
+        d = dist.Distiller.load("acme/tool", root, runner=runner, vocab=GENERIC)
+        d.update(_session(tmp_path, i, [
+            ("Bash", {"command": "make build"}, "built"),
+            ("Bash", {"command": "make test"}, "ok")]), iid=f"s{i}")
+        d.save(root)
+    assert len(ticks) == 3
+    spec = dist.Distiller.load("acme/tool", root, vocab=GENERIC).facts["build-before-test"].spec
+    assert spec["admitted_at"] == 3 and spec["rev"] == 2
+    assert spec["revisions"] == [{"at": 5, "contradict": r"make: \*\*\*",
+                                  "was": "no rule to make target"}]
+    saved = json.load(open(dist.Distiller._path(root, "acme/tool"), encoding="utf-8"))
+    assert saved["extractors"]["ran_make"]["admitted_at"] == 1
