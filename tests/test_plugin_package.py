@@ -324,7 +324,9 @@ console.log(JSON.stringify([
     run = subprocess.run([node, "--experimental-strip-types", "--no-warnings",
                           "--input-type=module", "-e", script, ext],
                          capture_output=True, text=True, timeout=60)
-    if run.returncode and "strip-types" in run.stderr:
+    # an older node rejects the flag; a build without TypeScript (some distro packages)
+    # accepts it and then fails with ERR_NO_TYPESCRIPT
+    if run.returncode and ("strip-types" in run.stderr or "ERR_NO_TYPESCRIPT" in run.stderr):
         pytest.skip("this node cannot load TypeScript")
     assert run.returncode == 0, run.stderr
     facts = "Facts:\n- one"
