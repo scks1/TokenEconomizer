@@ -10,6 +10,8 @@ writing the cap to the wrong directory -- which looks exactly like success.
 import os
 import subprocess
 
+import pytest
+
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _SH = os.path.join(_REPO, "scripts", "launch", "fleet_budget.sh")
 
@@ -69,6 +71,7 @@ def test_zero_leaves_the_cgroup_alone(tmp_path):
     assert (base / "cpu.max").read_text().strip() == "max 100000"
 
 
+@pytest.mark.skipif(getattr(os, "geteuid", lambda: 1)() == 0, reason="root writes through a read-only cpu.max")
 def test_an_unwritable_cgroup_warns_and_never_fails_the_launch(tmp_path):
     """cgroup v2 need not delegate `cpu` to the user manager. When it does not, the lane
     still has to run -- but it must SAY the budget is not in force rather than imply one."""

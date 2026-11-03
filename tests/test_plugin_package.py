@@ -19,6 +19,15 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLUGIN = os.path.join(REPO, "plugin")
 # Windows runs no shebang: the launchers go through Git Bash's `sh`.
 SH = ["sh"] if os.name == "nt" else []
+
+
+def _core_importable_anyway(cwd):
+    """Whether the launcher's Python imports the package with no lookup at all (an install
+    of it, editable or not): then a failed lookup cannot be told from a working one."""
+    py = os.environ.get("TE_PYTHON") or shutil.which("python3") or shutil.which("python")
+    return py is not None and subprocess.run(
+        [py, "-c", "import tokeneconomizer"], cwd=str(cwd), capture_output=True,
+        env=dict(os.environ, PYTHONPATH="")).returncode == 0
 EVENTS = {"SessionStart", "UserPromptSubmit", "PostToolUse", "Stop", "SessionEnd"}
 
 
@@ -384,6 +393,8 @@ def test_the_plugin_carries_the_core_as_symlinks_an_install_copy_follows(tmp_pat
 def test_a_codex_install_copy_finds_the_core_in_the_marketplace_it_came_from(tmp_path):
     """Codex installs a COPY of plugin/ that drops the `lib` symlink (0.153.1), so the copy
     finds the core through the marketplace's `source` in Codex's config.toml."""
+    if _core_importable_anyway(tmp_path):
+        pytest.skip("this Python imports tokeneconomizer without the lookup (installed)")
     import shutil
     home = tmp_path / "codex"
     copy = home / "plugins" / "cache" / "tokeneconomizer" / "tokeneconomizer" / "0.1.0"
@@ -451,6 +462,8 @@ def test_a_claude_install_copy_without_symlinks_finds_the_core_in_its_marketplac
     link's target, and Claude Code's install copy (`~/.claude/plugins/cache/...`) carries that
     file, not the package. The copy finds the core through the marketplace Claude Code recorded
     in `plugins/known_marketplaces.json`."""
+    if _core_importable_anyway(tmp_path):
+        pytest.skip("this Python imports tokeneconomizer without the lookup (installed)")
     home = tmp_path / "claude-home"
     copy = home / "plugins" / "cache" / "tokeneconomizer" / "tokeneconomizer" / "0.1.0"
     shutil.copytree(PLUGIN, str(copy), symlinks=True,
